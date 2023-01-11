@@ -287,12 +287,15 @@ function App() {
   // }, []);
 
   const getCurrentArbData = async () => {
-    const getSecondaryRate = async (fromAddr, toAddr, amount) => {
+    const getSecondaryRate = async (fromAddr, toAddr, amount, protocols = []) => {
       const quoteParams = {
         fromTokenAddress: fromAddr,
         toTokenAddress: toAddr,
         amount: amount,
       };
+      if (protocols.length > 0) {
+        quoteParams["protocols"] = protocols.join(",");
+      }
       const queryString = new URLSearchParams(quoteParams).toString();
       const url = `https://api.1inch.io/v5.0/1/quote?${queryString}`;
       const res = await fetch(url);
@@ -315,7 +318,7 @@ function App() {
     const rateToString = (r) => ethers.utils.formatUnits(r.sub(r.mod(1e12)));
 
     const spotPriceContractUSDC = new ethers.Contract(spotPriceAddress, ["function getRate(address, address, bool) view returns (uint256)"], provider);
-    let secondaryRateUSDC = await getSecondaryRate(usdcAddress, wethAddress, 1000);
+    let secondaryRateUSDC = await getSecondaryRate(usdcAddress, wethAddress, 1000, ["UNISWAP_V2", "UNISWAP_V3"]); /// force uniswap, some dexes have odd prices, looking at you DXSWAP!
     secondaryRateUSDC = (1 / ethers.utils.formatUnits(secondaryRateUSDC, 6)) * 1e9;
 
     // hard coding the deposit fee, and swap fees, to save on API calls (yes very stingy, they don't change much anyway)
