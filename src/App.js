@@ -287,8 +287,20 @@ function App() {
   // }, []);
 
   const getCurrentArbData = async () => {
-    const rocketStorage = new ethers.Contract(rocketStorageAddress, ["function getAddress(bytes32 key) view returns (address)"], provider);
+    const getSecondaryRate = async (fromAddr, toAddr, amount) => {
+      const quoteParams = {
+        fromTokenAddress: fromAddr,
+        toTokenAddress: toAddr,
+        amount: amount,
+      };
+      const queryString = new URLSearchParams(quoteParams).toString();
+      const url = `https://api.1inch.io/v5.0/1/quote?${queryString}`;
+      const res = await fetch(url);
+      const resData = await res.json();
+      return ethers.BigNumber.from(resData.toTokenAmount);
+    };
 
+    const rocketStorage = new ethers.Contract(rocketStorageAddress, ["function getAddress(bytes32 key) view returns (address)"], provider);
     const rethAddress = await rocketStorage.getAddress(ethers.utils.keccak256(ethers.utils.toUtf8Bytes("contract.addressrocketTokenRETH")));
     const rethContract = new ethers.Contract(rethAddress, ["function getRethValue(uint256 ethAmount) view returns (uint256)", "function getExchangeRate() view returns (uint256)", "function approve(address spender, uint256 amount) nonpayable returns (bool)"], provider);
 
@@ -296,16 +308,15 @@ function App() {
     // const depositSettings = new ethers.Contract(rocketDepositSettingsAddress, ["function getDepositFee() view returns (uint256)", "function getMaximumDepositPoolSize() view returns (uint256)"], provider);
     // const dpFee = await depositSettings.getDepositFee();
 
-    const spotPriceContract = new ethers.Contract(spotPriceAddress, ["function getRateToEth(address, bool) view returns (uint256)"], provider);
     const primaryRate = await rethContract.getExchangeRate();
-    const secondaryRate = await spotPriceContract.getRateToEth(rethAddress, true);
+    const secondaryRate = await getSecondaryRate(rethAddress, wethAddress, ethers.utils.parseUnits("1", "ether").toString());
     const percentage = ethers.utils.formatUnits(primaryRate.sub(secondaryRate).abs().mul("100").mul("1000").div(primaryRate), 3);
     const direction = primaryRate.lte(secondaryRate) ? "premium" : "discount";
     const rateToString = (r) => ethers.utils.formatUnits(r.sub(r.mod(1e12)));
 
     const spotPriceContractUSDC = new ethers.Contract(spotPriceAddress, ["function getRate(address, address, bool) view returns (uint256)"], provider);
-    let secondaryRateUSDC = await spotPriceContractUSDC.getRate(wethAddress, usdcAddress, false);
-    secondaryRateUSDC = ethers.utils.formatUnits(secondaryRateUSDC, 6);
+    let secondaryRateUSDC = await getSecondaryRate(usdcAddress, wethAddress, 1000);
+    secondaryRateUSDC = (1 / ethers.utils.formatUnits(secondaryRateUSDC, 6)) * 1e9;
 
     // hard coding the deposit fee, and swap fees, to save on API calls (yes very stingy, they don't change much anyway)
     const primaryRateNumber = ethers.utils.formatUnits(primaryRate);
@@ -570,7 +581,7 @@ function App() {
           <h2 className="fw-bold p-0 m-0 logo-text">RocketArb Watch</h2>
         </div>
         <a className="btn btn-danger text-nowrap glow" title="This RocketArb-Watch page will be decomissioned in future" href="https://rocketscan.io/rocketarb/" target="_blank" rel="noreferrer">
-          Use the new RocketScan.io/rocketarb!
+          Use RocketScan.io/rocketarb!
         </a>
         <div className="d-flex flex-row gap-3">
           <a className="btn btn-sm btn-light text-nowrap" href="https://github.com/xrchz/rocketarb/" target="_blank" rel="noreferrer">
