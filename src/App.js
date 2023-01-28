@@ -17,6 +17,7 @@ const rocketStorageAddress = "0x1d8f8f00cfa6758d7bE78336684788Fb0ee0Fa46";
 const spotPriceAddress = "0x07D91f5fb9Bf7798734C3f606dB065549F6893bb";
 const usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48";
 const arbContractAddress = "0x1f7e55F2e907dDce8074b916f94F62C7e8A18571";
+const citrusArbContractAddress = "0xE46BFe6F559041cc1323dB3503a09c49fb5d8828";
 const API_KEY = process.env.REACT_APP_ETHERSCAN_API_KEY;
 
 const provider = new ethers.providers.JsonRpcProvider(`https://mainnet.infura.io/v3/${process.env.REACT_APP_INFURA_API_KEY}`);
@@ -248,11 +249,22 @@ function App() {
     let txProfits = await txInternal.json();
     let txGas = await txNormal.json();
 
-    txProfits = txProfits.result
-      .filter((x) => x.traceId === "0_1")
+    txProfits = txProfits.result;
+    txGas = txGas.result;
+
+    // get new arbs from citrus contract // NEEDS A REFACTOR THIS IS LAZY
+    let txCitrusInternal = await fetch(`https://api.etherscan.io/api?module=account&action=txlistinternal&address=${citrusArbContractAddress}&sort=asc&apikey=${API_KEY}`);
+    let txCitrusNormal = await fetch(`https://api.etherscan.io/api?module=account&action=txlist&address=${citrusArbContractAddress}&sort=asc&apikey=${API_KEY}`);
+    txCitrusInternal = await txCitrusInternal.json();
+    txCitrusNormal = await txCitrusNormal.json();
+    txProfits = [...txProfits, ...txCitrusInternal.result];
+    txGas = [...txGas, ...txCitrusNormal.result];
+
+    txProfits = txProfits
+      .filter((x) => x.traceId === "0_1" && x.gasUsed === "0")
       .map((x) => {
         let { hash, to, value } = x;
-        const tx = txGas.result.find((tx) => tx.hash === hash);
+        const tx = txGas.find((tx) => tx.hash === hash);
         let { gasUsed, gasPrice, timeStamp } = tx;
         gasUsed = Number(gasUsed);
         let txFee = (gasUsed * gasPrice) / 1e18;
